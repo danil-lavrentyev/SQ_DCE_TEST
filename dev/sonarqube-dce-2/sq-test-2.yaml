@@ -1,0 +1,634 @@
+---
+apiVersion: v1
+data:
+  postgresql-password: c29uYXJQYXNz
+  postgresql-postgres-password: bTRuMzNTTUU5Sg==
+kind: Secret
+metadata:
+  annotations:
+    meta.helm.sh/release-name: sonarqube-dce-2
+    meta.helm.sh/release-namespace: sonarqube-dce-2
+  labels:
+    app.kubernetes.io/instance: sonarqube-dce-2
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: postgresql
+    helm.sh/chart: postgresql-10.15.0
+  name: sonarqube-dce-2-postgresql
+  namespace: sonarqube-dce-2
+type: Opaque
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  annotations:
+    meta.helm.sh/release-name: sonarqube-dce-2
+    meta.helm.sh/release-namespace: sonarqube-dce-2
+  labels:
+    app: sonarqube-dce-2
+    app.kubernetes.io/component: sonarqube-dce-sonarqube-dce-2
+    app.kubernetes.io/instance: sonarqube-dce-2
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: sonarqube-dce-2-sonarqube-dce-2-onarqube-dce-2
+    app.kubernetes.io/part-of: sonarqube
+    app.kubernetes.io/version: 10.2.1-datacenter-search
+    chart: sonarqube-dce-10.2.1_800
+    heritage: Helm
+    release: sonarqube-dce
+    sonarqube.datacenter/type: search
+  name: sonarqube-dce-2-sonarqube-dce-2-search
+  namespace: sonarqube-dce-2
+spec:
+  podManagementPolicy: Parallel
+  replicas: 3
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      app: sonarqube-dce-2-search
+      release: sonarqube-dce-2
+  serviceName: sonarqube-dce-2-sonarqube-dce-2-search
+  template:
+    metadata:
+      annotations:
+        checksum/config: 85df329d22bcc40e6ad303377eb514f49d058af10a4ff6de749d047857cee445
+        checksum/init-fs: 54a8afbe840de2e1b389bae5f5303422fa4525f58e24ab033a7fef78e9a7d174
+        checksum/init-sysctl: dad135847f2b0e57fbb651fea28626b48c111dcfde071f0453f4391bb0259860
+        checksum/secret: 86674ef8bcaa2ba5121203cb112b9bb264da1aa45e9b2648e37052b8e4113a63
+      labels:
+        app: sonarqube-dce-2-search
+        release: sonarqube-dce-2
+        sonarqube.datacenter/type: search
+    spec:
+      containers:
+      - env:
+        - name: SONAR_LOG_JSONOUTPUT
+          value: "false"
+        - name: SONAR_CLUSTER_ES_HOSTS
+          value: sonarqube-dce-sonarqube-dce-search-0,sonarqube-dce-sonarqube-dce-search-1,sonarqube-dce-sonarqube-dce-search-2,
+        - name: SONAR_CLUSTER_ES_DISCOVERY_SEED_HOSTS
+          value: sonarqube-dce-sonarqube-dce-search-headless
+        - name: SONAR_CLUSTER_NODE_NAME
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: metadata.name
+        image: sonarqube:10.2.1-datacenter-search
+        imagePullPolicy: IfNotPresent
+        livenessProbe:
+          exec:
+            command:
+            - sh
+            - -c
+            - |
+              #!/bin/bash
+              # A Sonarqube search node container is considered live if http call returns 200
+              host="$(hostname -i || echo '127.0.0.1')"
+              if wget --no-proxy -qO- "http://${host}:9001/_cluster/health?local=true" | grep -q -e '"status":"green"' -e '"status":"yellow"'; then
+                exit 0
+              fi
+              exit 1
+          failureThreshold: 6
+          initialDelaySeconds: 60
+          periodSeconds: 30
+          successThreshold: 1
+          timeoutSeconds: 1
+        name: sonarqube-dce-2-search
+        ports:
+        - containerPort: 9001
+          name: search-port
+          protocol: TCP
+        - containerPort: 9002
+          name: es-port
+          protocol: TCP
+        readinessProbe:
+          exec:
+            command:
+            - sh
+            - -c
+            - |
+              #!/bin/bash
+              # A Sonarqube search node container is considered ready if the status of embedded ES is green or yellow
+              host="$(hostname -i || echo '127.0.0.1')"
+              if wget --no-proxy -qO- "http://${host}:9001/_cluster/health?wait_for_status=yellow&timeout=50s" | grep -q -e '"status":"green"' -e '"status":"yellow"'; then
+                exit 0
+              fi
+              exit 1
+          failureThreshold: 6
+          initialDelaySeconds: 60
+          periodSeconds: 30
+          successThreshold: 1
+          timeoutSeconds: 1
+        resources:
+          limits:
+            cpu: 800m
+            memory: 4096M
+          requests:
+            cpu: 400m
+            memory: 2Gi
+        securityContext:
+          runAsUser: 1000
+        startupProbe:
+          exec:
+            command:
+            - sh
+            - -c
+            - |
+              #!/bin/bash
+              # A Sonarqube search node container is considered started if http call returns 200
+              host="$(hostname -i || echo '127.0.0.1')"
+              if wget --no-proxy -qO- "http://${host}:9001/_cluster/health?local=true" | grep -q -e '"status":"green"' -e '"status":"yellow"'; then
+                exit 0
+              fi
+              exit 1
+          failureThreshold: 24
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          successThreshold: 1
+          timeoutSeconds: 1
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+        volumeMounts:
+        - mountPath: /opt/sonarqube/certs
+          name: sonarqube-dce-sonarqube-dce
+          readOnly: true
+          subPath: certs
+        - mountPath: /opt/sonarqube/data
+          name: sonarqube-dce-sonarqube-dce
+          subPath: data
+        - mountPath: /opt/sonarqube/temp
+          name: sonarqube-dce-sonarqube-dce
+          subPath: temp
+        - mountPath: /opt/sonarqube/logs
+          name: sonarqube-dce-sonarqube-dce
+          subPath: logs
+        - mountPath: /tmp
+          name: tmp-dir
+      dnsPolicy: ClusterFirst
+      initContainers:
+      - command:
+        - sh
+        - -e
+        - /tmp/scripts/init_sysctl.sh
+        image: busybox:1.32
+        imagePullPolicy: IfNotPresent
+        name: init-sysctl
+        resources: {}
+        securityContext:
+          privileged: true
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+        volumeMounts:
+        - mountPath: /tmp/scripts/
+          name: init-sysctl
+      - command:
+        - sh
+        - -e
+        - /tmp/scripts/init_fs.sh
+        image: busybox:1.32
+        imagePullPolicy: IfNotPresent
+        name: init-fs
+        resources: {}
+        securityContext:
+          privileged: true
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+        volumeMounts:
+        - mountPath: /tmp/scripts/
+          name: init-fs
+        - mountPath: /opt/sonarqube/certs
+          name: sonarqube-dce-sonarqube-dce
+          subPath: certs
+        - mountPath: /opt/sonarqube/data
+          name: sonarqube-dce-sonarqube-dce
+          subPath: data
+        - mountPath: /opt/sonarqube/temp
+          name: sonarqube-dce-sonarqube-dce
+          subPath: temp
+        - mountPath: /opt/sonarqube/logs
+          name: sonarqube-dce-sonarqube-dce
+          subPath: logs
+        - mountPath: /tmp
+          name: tmp-dir
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext: {}
+      serviceAccount: default
+      serviceAccountName: default
+      terminationGracePeriodSeconds: 30
+      volumes:
+      - name: ca-certs
+        secret:
+          defaultMode: 420
+          secretName: your-secret
+      - configMap:
+          defaultMode: 420
+          items:
+          - key: init_sysctl.sh
+            path: init_sysctl.sh
+          name: sonarqube-dce-sonarqube-dce-init-sysctl
+        name: init-sysctl
+      - configMap:
+          defaultMode: 420
+          items:
+          - key: init_fs.sh
+            path: init_fs.sh
+          name: sonarqube-dce-sonarqube-dce-init-fs
+        name: init-fs
+      - emptyDir: {}
+        name: sonarqube-dce-sonarqube-dce
+      - emptyDir: {}
+        name: tmp-dir
+  updateStrategy:
+    rollingUpdate:
+      partition: 0
+    type: RollingUpdate
+  volumeClaimTemplates:
+  - apiVersion: v1
+    kind: PersistentVolumeClaim
+    metadata:
+      creationTimestamp: null
+      labels:
+        app: sonarqube-dce-2-sonarqube-dce-2
+      name: sonarqube-dce-2-sonarqube-dce-2
+    spec:
+      accessModes:
+      - ReadWriteOnce
+      resources:
+        requests:
+          storage: 5Gi
+      volumeMode: Filesystem
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  annotations:
+    meta.helm.sh/release-name: sonarqube-dce-2
+    meta.helm.sh/release-namespace: sonarqube-dce-2
+  labels:
+    app.kubernetes.io/component: primary
+    app.kubernetes.io/instance: sonarqube-dce-2
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: postgresql
+    helm.sh/chart: postgresql-10.15.0
+  name: sonarqube-dce-2-postgresql
+  namespace: sonarqube-dce-2
+spec:
+  podManagementPolicy: OrderedReady
+  replicas: 1
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: sonarqube-dce-2
+      app.kubernetes.io/name: postgresql
+      role: primary
+  serviceName: sonarqube-dce-postgresql-2-headless
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: primary
+        app.kubernetes.io/instance: sonarqube-dce-2
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: postgresql
+        helm.sh/chart: postgresql-10.15.0
+        role: primary
+      name: sonarqube-dce-2-postgresql
+    spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - podAffinityTerm:
+              labelSelector:
+                matchLabels:
+                  app.kubernetes.io/component: primary
+                  app.kubernetes.io/instance: sonarqube-dce-2
+                  app.kubernetes.io/name: postgresql
+              namespaces:
+              - sonarqube-dce-2
+              topologyKey: kubernetes.io/hostname
+            weight: 1
+      automountServiceAccountToken: false
+      containers:
+      - env:
+        - name: BITNAMI_DEBUG
+          value: "false"
+        - name: POSTGRESQL_PORT_NUMBER
+          value: "5432"
+        - name: POSTGRESQL_VOLUME_DIR
+          value: /bitnami/postgresql
+        - name: PGDATA
+          value: /bitnami/postgresql/data
+        - name: POSTGRES_POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              key: postgresql-postgres-password
+              name: sonarqube-dce-2-postgresql
+        - name: POSTGRES_USER
+          value: sonarUser
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              key: postgresql-password
+              name: sonarqube-dce-2-postgresql
+        - name: POSTGRES_DB
+          value: sonarDB
+        - name: POSTGRESQL_ENABLE_LDAP
+          value: "no"
+        - name: POSTGRESQL_ENABLE_TLS
+          value: "no"
+        - name: POSTGRESQL_LOG_HOSTNAME
+          value: "false"
+        - name: POSTGRESQL_LOG_CONNECTIONS
+          value: "false"
+        - name: POSTGRESQL_LOG_DISCONNECTIONS
+          value: "false"
+        - name: POSTGRESQL_PGAUDIT_LOG_CATALOG
+          value: "off"
+        - name: POSTGRESQL_CLIENT_MIN_MESSAGES
+          value: error
+        - name: POSTGRESQL_SHARED_PRELOAD_LIBRARIES
+          value: pgaudit
+        image: docker.io/bitnami/postgresql:11.14.0-debian-10-r22
+        imagePullPolicy: IfNotPresent
+        livenessProbe:
+          exec:
+            command:
+            - /bin/sh
+            - -c
+            - exec pg_isready -U "sonarUser" -d "dbname=sonarDB" -h 127.0.0.1 -p 5432
+          failureThreshold: 6
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          successThreshold: 1
+          timeoutSeconds: 5
+        name: sonarqube-dce-2-postgresql
+        ports:
+        - containerPort: 5432
+          name: tcp-postgresql
+          protocol: TCP
+        readinessProbe:
+          exec:
+            command:
+            - /bin/sh
+            - -c
+            - -e
+            - |
+              exec pg_isready -U "sonarUser" -d "dbname=sonarDB" -h 127.0.0.1 -p 5432
+              [ -f /opt/bitnami/postgresql/tmp/.initialized ] || [ -f /bitnami/postgresql/.initialized ]
+          failureThreshold: 6
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          successThreshold: 1
+          timeoutSeconds: 5
+        resources:
+          limits:
+            cpu: "2"
+            memory: 2Gi
+          requests:
+            cpu: 100m
+            memory: 200Mi
+        securityContext:
+          runAsUser: 1001
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+        volumeMounts:
+        - mountPath: /dev/shm
+          name: dshm
+        - mountPath: /bitnami/postgresql
+          name: data
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext:
+        fsGroup: 1001
+      terminationGracePeriodSeconds: 30
+      volumes:
+      - emptyDir:
+          medium: Memory
+        name: dshm
+  updateStrategy:
+    type: RollingUpdate
+  volumeClaimTemplates:
+  - apiVersion: v1
+    kind: PersistentVolumeClaim
+    metadata:
+      creationTimestamp: null
+      name: data
+    spec:
+      accessModes:
+      - ReadWriteOnce
+      resources:
+        requests:
+          storage: 20Gi
+      volumeMode: Filesystem
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: sonarqube-dce-2
+  namespace: sonarqube-dce-2
+  annotations: 
+    kubernetes.io/ingress.class: nginx
+    nginx.ingress.kubernetes.io/proxy-body-size: "8m"
+spec:
+  rules:
+  - host: sonarqube-dce-2.danil.sonar-dev.shoot.canary.k8s-hana.ondemand.com
+    http:
+      paths:
+      - path: /
+        pathType: ImplementationSpecific
+        backend:
+          service:
+            name: sonarqube-dce-2
+            port:
+              number: 9000
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    meta.helm.sh/release-name: sonarqube-dce-2
+    meta.helm.sh/release-namespace: sonarqube-dce-2
+  labels:
+    app: sonarqube-dce-2
+    app.kubernetes.io/component: sonarqube-dce-2-sonarqube-dce-2
+    app.kubernetes.io/instance: sonarqube-dce-2
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: sonarqube-dce-2-sonarqube-dce-2-sonarqube-dce-2
+    app.kubernetes.io/part-of: sonarqube
+    app.kubernetes.io/version: 10.2.1-datacenter-app
+    chart: sonarqube-dce-10.2.1_800
+    heritage: Helm
+    release: sonarqube-dce
+    sonarqube.datacenter/type: app
+  name: sonarqube-dce-2-sonarqube-dce-2-app
+  namespace: sonarqube-dce-2
+spec:
+  progressDeadlineSeconds: 600
+  replicas: 3
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      app: sonarqube-dce-2
+      release: sonarqube-dce-2
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      annotations:
+        checksum/config: 85df329d22bcc40e6ad303377eb514f49d058af10a4ff6de749d047857cee445
+        checksum/plugins: c8566321103e5c4729bdb897c27ef1fad4b088ba36d088a23c12444980efefc1
+        checksum/secret: 86674ef8bcaa2ba5121203cb112b9bb264da1aa45e9b2648e37052b8e4113a63
+      labels:
+        app: sonarqube-dce-2
+        release: sonarqube-dce-2
+        sonarqube.datacenter/type: app
+    spec:
+      containers:
+      - env:
+        - name: SONAR_HELM_CHART_VERSION
+          value: 10.2.1_800
+        - name: SONAR_LOG_JSONOUTPUT
+          value: "false"
+        - name: SONAR_CLUSTER_SEARCH_HOSTS
+          value: sonarqube-dce-sonarqube-dce-search
+        - name: SONAR_CLUSTER_KUBERNETES
+          value: "true"
+        - name: SONAR_CLUSTER_NODE_NAME
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: metadata.name
+        - name: SONAR_CLUSTER_HOSTS
+          value: sonarqube-dce-sonarqube-dce-headless
+        - name: SONAR_AUTH_JWTBASE64HS256SECRET
+          valueFrom:
+            secretKeyRef:
+              key: SONAR_AUTH_JWTBASE64HS256SECRET
+              name: sonarqube-dce-sonarqube-dce-jwt
+        - name: SONAR_WEB_JAVAOPTS
+        - name: SONAR_CE_JAVAOPTS
+        - name: SONAR_WEB_CONTEXT
+          value: /
+        - name: SONAR_JDBC_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              key: postgresql-password
+              name: sonarqube-dce-2-postgresql
+        - name: SONAR_WEB_SYSTEMPASSCODE
+          valueFrom:
+            secretKeyRef:
+              key: SONAR_WEB_SYSTEMPASSCODE
+              name: sonarqube-dce-sonarqube-dce-monitoring-passcode
+        envFrom:
+        - configMapRef:
+            name: sonarqube-dce-sonarqube-dce-jdbc-config
+        image: sonarqube:10.2.1-datacenter-app
+        imagePullPolicy: IfNotPresent
+        livenessProbe:
+          exec:
+            command:
+            - sh
+            - -c
+            - |
+              host="$(hostname -i || echo '127.0.0.1')"
+              wget --no-proxy --quiet -O /dev/null --timeout=1 --header="X-Sonar-Passcode: $SONAR_WEB_SYSTEMPASSCODE" "http://${host}:9000/api/system/liveness"
+          failureThreshold: 6
+          initialDelaySeconds: 180
+          periodSeconds: 30
+          successThreshold: 1
+          timeoutSeconds: 1
+        name: sonarqube-dce
+        ports:
+        - containerPort: 9000
+          name: http
+          protocol: TCP
+        - containerPort: 9003
+          name: hazelcast
+          protocol: TCP
+        readinessProbe:
+          exec:
+            command:
+            - sh
+            - -c
+            - "#!/bin/bash\n# A Sonarqube container is considered ready if the status
+              is UP, DB_MIGRATION_NEEDED or DB_MIGRATION_RUNNING\n# status about migration
+              are added to prevent the node to be kill while sonarqube is upgrading
+              the database.\nhost=\"$(hostname -i || echo '127.0.0.1')\"\nif wget
+              --no-proxy -qO- http://${host}:9000/api/system/status | grep -q -e '\"status\":\"UP\"'
+              -e '\"status\":\"DB_MIGRATION_NEEDED\"' -e '\"status\":\"DB_MIGRATION_RUNNING\"';
+              then\n\texit 0\nfi\nexit 1\n"
+          failureThreshold: 8
+          initialDelaySeconds: 120
+          periodSeconds: 30
+          successThreshold: 1
+          timeoutSeconds: 1
+        resources:
+          limits:
+            cpu: 800m
+            memory: 4096M
+          requests:
+            cpu: 400m
+            memory: 2Gi
+        securityContext:
+          runAsUser: 1000
+        startupProbe:
+          failureThreshold: 32
+          httpGet:
+            path: /api/system/status
+            port: http
+            scheme: HTTP
+          initialDelaySeconds: 100
+          periodSeconds: 10
+          successThreshold: 1
+          timeoutSeconds: 1
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+        volumeMounts:
+        - mountPath: /opt/sonarqube/data
+          name: sonarqube
+          subPath: data
+        - mountPath: /opt/sonarqube/temp
+          name: sonarqube
+          subPath: temp
+        - mountPath: /opt/sonarqube/logs
+          name: sonarqube
+          subPath: logs
+        - mountPath: /tmp
+          name: tmp-dir
+      dnsPolicy: ClusterFirst
+      initContainers:
+      - command:
+        - /bin/sh
+        - -c
+        - for i in $(seq 1 200); do nc -z -w3 sonarqube-dce-postgresql 5432 && exit
+          0 || sleep 2; done; exit 1
+        image: busybox:1.32
+        imagePullPolicy: IfNotPresent
+        name: wait-for-db
+        resources: {}
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext: {}
+      serviceAccount: default
+      serviceAccountName: default
+      terminationGracePeriodSeconds: 30
+      volumes:
+      - configMap:
+          defaultMode: 420
+          items:
+          - key: init_sysctl.sh
+            path: init_sysctl.sh
+          name: sonarqube-dce-sonarqube-dce-init-sysctl
+        name: init-sysctl
+      - configMap:
+          defaultMode: 420
+          items:
+          - key: install_plugins.sh
+            path: install_plugins.sh
+          name: sonarqube-dce-sonarqube-dce-install-plugins
+        name: install-plugins
+      - emptyDir: {}
+        name: sonarqube
+      - emptyDir: {}
+        name: tmp-dir

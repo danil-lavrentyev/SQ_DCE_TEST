@@ -1,0 +1,22 @@
+---
+apiVersion: source.toolkit.fluxcd.io/v1beta2
+kind: HelmRepository
+metadata:
+  name: fluxcd-v2
+  namespace: kube-system
+spec:
+  interval: 1m
+  url: https://fluxcd-community.github.io/helm-charts/
+---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: GitRepository
+metadata:
+  name: sonarqube-dce
+  namespace: flux-system
+spec:
+  interval: 1m
+  url: https://github.com/danil-lavrentyev/dev/
+  ref:
+    branch: master
+  secretRef:
+    name: flux-git-deploy

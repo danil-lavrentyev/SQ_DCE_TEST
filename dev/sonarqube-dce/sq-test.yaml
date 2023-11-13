@@ -1,0 +1,58 @@
+---
+apiVersion: helm.toolkit.fluxcd.io/v2beta1
+kind: HelmRelease
+metadata:
+  name: sonarqube-dce-2
+  namespace: sonarqube-dce-2
+spec:
+  releaseName: sonarqube-dce
+  interval: 1m
+  chart:
+    spec:
+      chart: https://SonarSource.github.io/helm-chart-sonarqube
+      version: 10.2.1
+      sourceRef:
+        kind: HelmRepository
+        name: sonarqube-dce
+  values:
+    sonarqube:
+      sonar.jdbc.url: jdbc:postgresql://sonarqube-postgresql:5432/sonar
+      sonar.jdbc.username: sonarqube
+      sonar.jdbc.password: "test"
+      replicas: 3
+  targetNamespace: sonarqube-dce-2
+---
+apiVersion: source.toolkit.fluxcd.io/v1beta2
+kind: HelmChart
+metadata:
+  name: sonarqube-dce
+  namespace: sonarqube-dce-2
+spec:
+  interval: 5m0s
+  chart: sonarqube-dce
+  reconcileStrategy: ChartVersion
+  sourceRef:
+    kind: HelmRepository
+    name: sonarqube-dce
+  version: 10.2.1
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: sonarqube-dce-2
+  namespace: sonarqube-dce-2
+  annotations: 
+    kubernetes.io/ingress.class: nginx
+    nginx.ingress.kubernetes.io/proxy-body-size: "8m"
+spec:
+  rules:
+  - host: sonarqube-dce-2.danil.sonar-dev.shoot.canary.k8s-hana.ondemand.com
+    http:
+      paths:
+      - path: /
+        pathType: ImplementationSpecific
+        backend:
+          service:
+            name: sonarqube-dce-2
+            port:
+              number: 9000

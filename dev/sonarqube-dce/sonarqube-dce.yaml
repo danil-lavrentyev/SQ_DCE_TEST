@@ -18,7 +18,7 @@ spec:
   releaseName: sonarqube-dce-2
   chart:
     repository: https://SonarSource.github.io/helm-chart-sonarqube
-    name: sonarqube-dce-2
+    name: sonarqube-dce
     version: 10.2.1  # Replace with the desired version
   values:
     sonarqube:
