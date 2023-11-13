@@ -1,0 +1,132 @@
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: sonarqube-postgres-secret
+  namespace: sonarqube-dce-2
+type: Opaque
+stringData:
+  postgresql-password: "@pa$$word!!!"
+---
+apiVersion: source.toolkit.fluxcd.io/v1beta1
+kind: HelmRelease
+metadata:
+  name: sonarqube-dce-2
+  namespace: sonarqube-dce-2
+spec:
+  interval: 5m
+  releaseName: sonarqube-dce-2
+  chart:
+    repository: https://SonarSource.github.io/helm-chart-sonarqube
+    name: sonarqube-dce-2
+    version: 10.2.1  # Replace with the desired version
+  values:
+    sonarqube:
+      sonar.jdbc.url: jdbc:postgresql://sonarqube-dce-2-postgresql:5432/sonar
+      sonar.jdbc.username: sonarqube
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: sonarqube-dce-2-postgresql
+  namespace: sonarqube-dce-2
+spec:
+  ports:
+    - name: postgres
+      port: 5432
+  selector:
+    app: sonarqube-dce-2-postgresql
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sonarqube-dce-2-postgresql
+  namespace: sonarqube-dce-2
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: sonarqube-dce-2-postgresql
+  template:
+    metadata:
+      labels:
+        app: sonarqube-dce-2-postgresql
+    spec:
+      containers:
+        - name: sonarqube-dce-2-postgresql
+          image: postgres:latest
+          env:
+            - name: POSTGRES_USER
+              value: sonarqube
+            - name: POSTGRES_PASSWORD_FILE
+              value: /run/secrets/postgresql-password
+          ports:
+            - containerPort: 5432
+          volumeMounts:
+            - name: postgresql-password
+              mountPath: /run/secrets/postgresql-password
+      volumes:
+        - name: postgresql-password
+          secret:
+            secretName: sonarqube-postgres-secret
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: sonarqube-dce-2
+  namespace: sonarqube-dce-2
+spec:
+  ports:
+    - name: web
+      port: 9000
+  selector:
+    app: sonarqube-dce-2
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sonarqube-dce-2
+  namespace: sonarqube-dce-2
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: sonarqube-dce-2
+  template:
+    metadata:
+      labels:
+        app: sonarqube-dce-2
+    spec:
+      containers:
+        - name: sonarqube-dce-2
+          image: sonarqube:10.2.1-datacenter-app # Replace with the desired SonarQube version
+          env:
+            - name: SONAR_JDBC_URL
+              value: jdbc:postgresql://sonarqube-dce-2-postgresql:5432/sonar
+            - name: SONAR_JDBC_USERNAME
+              value: sonarqube-dce-2
+          ports:
+            - containerPort: 9000
+          dependsOn:
+            - sonarqube-postgresql
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: sonarqube-dce-2
+  namespace: sonarqube-dce-2
+  annotations: 
+    kubernetes.io/ingress.class: nginx
+    nginx.ingress.kubernetes.io/proxy-body-size: "8m"
+spec:
+  rules:
+  - host: sonarqube-dce-2.danil.sonar-dev.shoot.canary.k8s-hana.ondemand.com
+    http:
+      paths:
+      - path: /
+        pathType: ImplementationSpecific
+        backend:
+          service:
+            name: sonarqube-dce-2
+            port:
+              number: 9000
